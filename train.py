@@ -32,7 +32,11 @@ class Params:
 
 
 def get_args():
-    parser = argparse.ArgumentParser('Yet Another EfficientDet Pytorch: SOTA object detection network - Zylo117')
+    parser = argparse.ArgumentParser(
+        'Yet Another EfficientDet Pytorch: SOTA object detection network - Zylo117',
+         usage = 'python train.py -c 1 -p COCO_ki67_NEC --batch_size 36 --optim sgd --lr 8e-2 --num_epochs 500'
+    )
+
     parser.add_argument('-p', '--project', type=str, default='coco', help='project file that contains parameters')
     parser.add_argument('-c', '--compound_coef', type=int, default=0, help='coefficients of efficientdet')
     parser.add_argument('-n', '--num_workers', type=int, default=12, help='num_workers of dataloader')
@@ -87,10 +91,18 @@ class ModelWithLoss(nn.Module):
 
 
 def train(opt):
+    '''
+    python train.py -c 4 -p COCO_ki67_NEC --head_only True --lr 1e-5 --batch_size 64 --load_weights weights/efficientdet-d4.pth  --num_epochs 250
+    '''
+
     params = Params(f'projects/{opt.project}.yml')
 
     if params.num_gpus == 0:
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    elif params.num_gpus == 6:
+        os.environ['CUDA_VISIBLE_DEVICES'] = '2,3,4,5,6,7'
+    elif params.num_gpus == 8:
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5,6,7'
 
     if torch.cuda.is_available():
         torch.cuda.manual_seed(42)
@@ -194,8 +206,9 @@ def train(opt):
         optimizer = torch.optim.AdamW(model.parameters(), opt.lr)
     else:
         optimizer = torch.optim.SGD(model.parameters(), opt.lr, momentum=0.9, nesterov=True)
+        #optimizer = torch.optim.SGD(model.parameters(), opt.lr, momentum=0.9, weight_decay=4e-5, nesterov=True)
 
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, verbose=True)   #自动调节lr,容许3次学习率不下降，就降低学习率
 
     epoch = 0
     best_loss = 1e5

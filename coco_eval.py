@@ -25,6 +25,9 @@ from efficientdet.utils import BBoxTransform, ClipBoxes
 from utils.utils import preprocess, invert_affine, postprocess
 
 ap = argparse.ArgumentParser()
+'''
+python coco_eval.py -p COCO_ki67_NEC -c 1 -w /home/gengxiaoqi/Yet-Another-EfficientDet-Pytorch/logs/COCO_ki67_NEC/efficientdet-d1_100_505.pth
+'''
 ap.add_argument('-p', '--project', type=str, default='coco', help='project file that contains parameters')
 ap.add_argument('-c', '--compound_coef', type=int, default=0, help='coefficients of efficientdet')
 ap.add_argument('-w', '--weights', type=str, default=None, help='/path/to/weights')
@@ -54,14 +57,14 @@ input_sizes = [512, 640, 768, 896, 1024, 1280, 1280, 1536]
 
 def evaluate_coco(img_path, set_name, image_ids, coco, model, threshold=0.05):
     results = []
+    processed_image_ids = []
 
     regressBoxes = BBoxTransform()
     clipBoxes = ClipBoxes()
 
     for image_id in tqdm(image_ids):
         image_info = coco.loadImgs(image_id)[0]
-        image_path = img_path + image_info['file_name']
-
+        image_path = [img_path + image_info['file_name']]
         ori_imgs, framed_imgs, framed_metas = preprocess(image_path, max_size=input_sizes[compound_coef])
         x = torch.from_numpy(framed_imgs[0])
 
@@ -84,6 +87,8 @@ def evaluate_coco(img_path, set_name, image_ids, coco, model, threshold=0.05):
         
         if not preds:
             continue
+
+        processed_image_ids.append(image_id)
 
         preds = invert_affine(framed_metas, preds)[0]
 
@@ -121,6 +126,8 @@ def evaluate_coco(img_path, set_name, image_ids, coco, model, threshold=0.05):
         os.remove(filepath)
     json.dump(results, open(filepath, 'w'), indent=4)
 
+    return processed_image_ids
+
 
 def _eval(coco_gt, image_ids, pred_json_path):
     # load results in COCO evaluation tool
@@ -137,7 +144,7 @@ def _eval(coco_gt, image_ids, pred_json_path):
 
 if __name__ == '__main__':
     SET_NAME = params['val_set']
-    VAL_GT = f'datasets/{params["project_name"]}/annotations/instances_{SET_NAME}.json'
+    VAL_GT = f'datasets/{params["project_name"]}/annotations/{SET_NAME}.json'
     VAL_IMGS = f'datasets/{params["project_name"]}/{SET_NAME}/'
     MAX_IMAGES = 10000
     coco_gt = COCO(VAL_GT)
@@ -156,6 +163,6 @@ if __name__ == '__main__':
             if use_float16:
                 model.half()
 
-        evaluate_coco(VAL_IMGS, SET_NAME, image_ids, coco_gt, model)
+        image_ids = evaluate_coco(VAL_IMGS, SET_NAME, image_ids, coco_gt, model)
 
     _eval(coco_gt, image_ids, f'{SET_NAME}_bbox_results.json')
